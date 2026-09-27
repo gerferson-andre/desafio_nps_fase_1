@@ -1,0 +1,51 @@
+name: desafio_nps_fase_1
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - bzip2=1.0.8=h2bbff1b_6
+  - ca-certificates=2026.7.22=h4c7d964_0
+  - libblas=3.11.0=11_h8455456_mkl
+  - libcblas=3.11.0=11_h2a3cdd5_mkl
+  - libexpat=2.8.5=hd7fb8db_1
+  - libffi=3.4.8=h42d73b9_3
+  - libhwloc=2.13.0=default_h8af1a8b_1000
+  - libiconv=1.18=hc1393d2_3
+  - liblapack=3.11.0=11_hf9ab0e9_mkl
+  - libxml2=2.13.9=h741aa76_0
+  - libzlib=1.3.2=h1c6eee0_0
+  - llvm-openmp=23.1.2=h49e36cd_0
+  - mkl=2026.1.0=hac47afa_235
+  - numpy=2.2.6=py310h4987827_0
+  - openssl=3.6.4=hf411b9b_0
+  - packaging=26.3=py310haa95532_0
+  - pandas=2.3.3=py310hed136d8_2
+  - pip=26.2.1=pyhc872135_0
+  - python=3.10.21=hb00fc5c_0
+  - python-dateutil=2.9.0.post0=pyhe01879c_2
+  - python-tzdata=2025.3=pyhd8ed1ab_0
+  - python_abi=3.10=2_cp310
+  - pytz=2025.2=pyhd8ed1ab_0
+  - setuptools=83.0.0=py310haa95532_0
+  - six=1.17.0=pyhe01879c_1
+  - sqlite=3.53.4=hee5a0db_0
+  - tbb=2023.1.0=hdcfe883_0
+  - tk=8.6.15=hf199647_0
+  - tzdata=2026c=he532380_0
+  - ucrt=10.0.22621.0=haa95532_0
+  - vc=14.3=h2df5915_12
+  - vc14_runtime=14.44.35208=h4927774_12
+  - vs2015_runtime=14.44.35208=ha6b5a95_12
+  - wheel=0.47.0=py310haa95532_0
+  - xz=5.8.4=hb851c79_0
+  - zlib=1.3.2=h1c6eee0_0
+  - pip:
+    - contourpy==1.3.2
+    - cycler==0.12.1
+    - fonttools==4.65.0
+    - kiwisolver==1.5.1
+    - matplotlib==3.10.9
+    - pillow==12.3.0
+    - pyparsing==3.3.3
+    - seaborn==0.13.2
+prefix: C:\Users\andre\anaconda3\envs\desafio_nps_fase_1
