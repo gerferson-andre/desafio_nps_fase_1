@@ -1,0 +1,11 @@
+# Cache do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Cache do Pytest
+.pytest_cache/
+
+# Outros arquivos temporários
+.vscode/
