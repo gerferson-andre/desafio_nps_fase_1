@@ -1,7 +1,11 @@
 pandas
 numpy
-matplotlib
 seaborn
+matplotlib
 scipy
 scikit-learn
 statsmodels
+pytest
+flake8
+black
+isort

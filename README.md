@@ -1,4 +1,3 @@
-```markdown
 # 📊 Tech Challenge — Análise Preditiva e Diagnóstico de NPS
 
 Este repositório contém a solução do **Tech Challenge (Fase 1)** da Pós-Tech em AI Scientist (FIAP). O projeto consiste em uma análise estatística e econométrica avançada sobre a base de dados de **Net Promoter Score (NPS)** de uma operação de e-commerce, visando transitar de uma gestão reativa de satisfação para um modelo preditivo focado em alavancas operacionais e logísticas.
@@ -133,7 +132,5 @@ O repositório está integrado com:
 **Gerferson André Silva Costa**
 
 Pós-Graduação Tech em AI Scientist — FIAP
-
-```
 
 ```
