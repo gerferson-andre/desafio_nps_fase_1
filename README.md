@@ -1,7 +1,3 @@
-Aqui está o **README.md** reformulado com foco total na execução e reprodução do projeto **via Docker** e **Docker Compose**, simplificando o fluxo para qualquer pessoa rodar a análise sem precisar configurar ambientes Python locais:
-
----
-
 ```markdown
 # 📊 Tech Challenge — Análise Preditiva e Diagnóstico de NPS
 
@@ -44,7 +40,7 @@ A análise diagnosticou uma base com alto índice de insatisfação (**NPS Index
 
 ---
 
-## 🐳 Execução via Docker (Recomendado)
+## 🐳 Execução via Docker (recomendado)
 
 Todo o ambiente de dependências (Python, Pandas, SciPy, Scikit-Learn, Statsmodels, Matplotlib, Seaborn) foi conteinerizado para garantir reprodutibilidade total sem a necessidade de instalações locais.
 
