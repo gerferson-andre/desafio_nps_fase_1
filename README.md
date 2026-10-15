@@ -20,20 +20,26 @@ A análise diagnosticou uma base com alto índice de insatisfação (**NPS Index
 ## 🛠️ Estrutura do Projeto
 
 ```text
-├── .github/workflows/   # Esteira de Integração Contínua (CI/CD)
-├── data/                # Base de dados de entrada (CSV)
+├── .github/                 # Configurações do GitHub e workflows de CI/CD
+├── data/                    # Base de dados de entrada (CSV)
 │   └── desafio_nps_fase_1.csv
-├── reports/             # Relatórios e exportação de gráficos (mapeado via volume no Docker)
+├── notebooks/               # Notebooks Jupyter de análise exploratória
+│   └── tech_challenge_andre_v2.ipynb
+├── reports/                 # Relatórios e figuras geradas pela análise
 │   └── figures/
-├── src/                 # Código-fonte da aplicação
+├── src/                     # Código-fonte principal da aplicação
 │   ├── __init__.py
-│   └── main.py          # Script principal de execução da pipeline de análise
-├── tests/               # Suíte de testes unitários (pytest)
-├── Dockerfile           # Imagem isolada do ambiente de execução Python
-├── docker-compose.yml   # Orquestração do contêiner e mapeamento de volumes
-├── .dockerignore        # Arquivos ignorados na build do contêiner
-├── environment.yml      # Especificação das dependências Conda/Python
-└── README.md            # Documentação do projeto
+│   └── main.py              # Pipeline de processamento e modelagem
+├── tests/                   # Suíte de testes unitários (pytest)
+│   └── test_main.py
+├── .dockerignore            # Arquivos ignorados no build do Docker
+├── .gitignore               # Arquivos ignorados pelo Git
+├── .pre-commit-config.yaml  # Configuração dos hooks do pre-commit (PEP 8)
+├── Dockerfile               # Imagem isolada do ambiente de execução
+├── environment.yml          # Especificação do ambiente Conda
+├── pytest.ini               # Configuração do pytest
+├── README.md                # Documentação do projeto
+└── requirements.txt         # Dependências pip do projeto
 
 ```
 
