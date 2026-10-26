@@ -82,7 +82,7 @@ def processar_analise():
 
     print("--- CLASSIFICAÇÃO DA BASE DE CLIENTES ---")
     print(f"Detratores (notas <= 6.0): {detratores} ({pct_det:.2f}%)")
-    print(f"Neutros (notas 6.0 - 8.0]: {neutros} ({pct_neu:.2f}%)")
+    print(f"Neutros (notas 7.0 - 8.0]: {neutros} ({pct_neu:.2f}%)")
     print(f"Promotores (notas > 8.0): {promotores} ({pct_pro:.2f}%)")
     print(f"NPS INDEX SCORE (%Promotores - %Detratores): {nps_index:.2f}\n")
 
