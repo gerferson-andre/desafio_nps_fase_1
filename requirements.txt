@@ -1,11 +1,7 @@
-pandas
-numpy
-seaborn
-matplotlib
+numpy==2.2.6
+pandas==2.3.3
 scipy
 scikit-learn
 statsmodels
-pytest
-flake8
-black
-isort
+matplotlib==3.10.9
+seaborn==0.13.2

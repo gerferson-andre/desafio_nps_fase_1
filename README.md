@@ -1,135 +1,166 @@
-# 📊 Tech Challenge — Análise Preditiva e Diagnóstico de NPS
+# 📊 Tech Challenge: Análise Preditiva e Diagnóstico de NPS
 
-Este repositório contém a solução do **Tech Challenge (Fase 1)** da Pós-Tech em AI Scientist (FIAP). O projeto consiste em uma análise estatística e econométrica avançada sobre a base de dados de **Net Promoter Score (NPS)** de uma operação de e-commerce, visando transitar de uma gestão reativa de satisfação para um modelo preditivo focado em alavancas operacionais e logísticas.
+Solução do **Tech Challenge (Fase 1)** da Pós-Tech em AI Scientist (FIAP). A análise examina uma base de 2.500 pedidos de e-commerce para entender o que se associa à nota de NPS dos clientes e testar se essa nota pode ser estimada a partir de sinais operacionais registrados antes da pesquisa.
 
 ---
 
 ## 📌 Sumário Executivo
 
-A análise diagnosticou uma base com alto índice de insatisfação (**NPS Index Score de -66.00**), fortemente correlacionada com gargalos de atendimento (SAC) e atrasos logísticos. Através de métodos paramétricos e não paramétricos, além de regressão OLS, identificaram-se os principais *drivers* de detratores e oportunidades de retenção (recompra).
+A base tem alto índice de insatisfação: **índice NPS de −79,96**, com 84,36% de detratores, 11,24% de neutros e 4,40% de promotores.
 
-### Principais Achados
-- **Distribuição do NPS**: Média de $4.38 \pm 2.51$, com $74.04\%$ de detratores, $17.92\%$ de neutros e $8.04\%$ de promotores.
-- **Normalidade Rejeitada**: O teste de Shapiro-Wilk ($W = 0.9817, p < 0.0001$) confirmou que o NPS não segue distribuição normal, direcionando a análise para inferência não paramétrica.
-- **Drivers de Insatisfação**: As variáveis com maior correlação negativa ($r_s$ de Spearman) com o NPS foram a **quantidade de reclamações** e o **tempo de resolução no SAC**.
-- **Impacto na Recompra**: O teste de Mann-Whitney U confirmou com significância estatística ($p < 0.0001$) que clientes da *Coorte de Sucesso* (que realizam recompra em até 30 dias) possuem notas de NPS significativamente mais altas.
-- **Efeito Regional**: O teste de Kruskal-Wallis ($p > 0.05$) indicou ausência de diferença estatisticamente significante de NPS entre as regiões geográficas dos clientes.
+### Principais achados
+
+- **Distribuição da nota:** média de 4,38 (desvio padrão de 2,51). A nota não segue distribuição normal (Shapiro-Wilk: W = 0,9817, p < 0,001), o que levou ao uso de Spearman e de testes não paramétricos.
+- **Associações com a nota (Spearman):** as associações mais fortes são negativas e vêm dos sinais de atrito: atraso na entrega (ρ = −0,59), número de reclamações (ρ = −0,49), contatos com o SAC (ρ = −0,34) e tempo de resolução (ρ = −0,19). Frete, idade, parcelas, desconto e valor do pedido ficam próximos de zero.
+- **Diferença entre detratores e demais clientes:** detratores têm, em média, 2,4 dias de atraso e 4,4 reclamações, contra 1,2 dia e 2,8 reclamações nos não detratores sem recompra.
+- **Recompra:** quem recompra em 30 dias tem nota média de 9,0, contra 3,9 de quem não recompra (Mann-Whitney U, p < 0,001). Os grupos não se sobrepõem: a maior nota sem recompra é 7,9 e a menor com recompra é 8,0. Essa separação total exige investigar a origem da variável antes de ser usada como evidência.
+- **Região:** não há diferença de nota entre regiões (Kruskal-Wallis, H = 3,38, p = 0,50). O problema é sistêmico, não regional.
+- **Modelo preditivo (OLS):** com atraso, contatos com o SAC, tempo de resolução e valor do pedido, o modelo explica 53% da variação da nota no treino e 54% no teste. O erro médio absoluto é de 1,36 ponto, contra 2,07 de uma linha de base que prevê sempre a média. Nenhuma previsão chega à faixa de promotor (nota ≥ 9).
 
 ---
 
 ## 🛠️ Estrutura do Projeto
 
 ```text
-├── .github/                 # Configurações do GitHub e workflows de CI/CD
-├── data/                    # Base de dados de entrada (CSV)
-│   └── desafio_nps_fase_1.csv
-├── notebooks/               # Notebooks Jupyter de análise exploratória
-│   └── tech_challenge_andre_v2.ipynb
-├── reports/                 # Relatórios e figuras geradas pela análise
-│   └── figures/
-├── src/                     # Código-fonte principal da aplicação
+├── .github/workflows/ci.yml   # Pipeline de CI: lint (flake8) e testes (pytest)
+├── data/
+│   └── desafio_nps_fase_1.csv # Base de dados de entrada
+├── notebooks/
+│   └── tech_challenge_andre_v2.ipynb  # Análise exploratória e modelagem
+├── reports/
+│   └── figures/               # Figuras geradas pelo pipeline
+├── src/
 │   ├── __init__.py
-│   └── main.py              # Pipeline de processamento e modelagem
-├── tests/                   # Suíte de testes unitários (pytest)
-│   └── test_main.py
-├── .dockerignore            # Arquivos ignorados no build do Docker
-├── .gitignore               # Arquivos ignorados pelo Git
-├── .pre-commit-config.yaml  # Configuração dos hooks do pre-commit (PEP 8)
-├── Dockerfile               # Imagem isolada do ambiente de execução
-├── environment.yml          # Especificação do ambiente Conda
-├── pytest.ini               # Configuração do pytest
-├── README.md                # Documentação do projeto
-└── requirements.txt         # Dependências pip do projeto
-
+│   └── main.py                # Pipeline de análise (funções e execução)
+├── tests/
+│   └── test_main.py           # Teste de execução do pipeline
+├── .dockerignore
+├── .flake8                    # Limite de linha (88) para o flake8
+├── .gitignore
+├── .pre-commit-config.yaml    # isort, black e flake8 antes de cada commit
+├── Dockerfile                 # Imagem isolada para executar o pipeline
+├── environment.yml            # Ambiente Conda (fonte principal de dependências)
+├── pytest.ini                 # Configuração do pytest
+├── requirements.txt           # Dependências de execução (pip)
+├── requirements-dev.txt       # Ferramentas de desenvolvimento (pip)
+└── README.md
 ```
 
 ---
 
-## 🐳 Execução via Docker (recomendado)
+## ⚙️ Ambiente de Desenvolvimento (Conda)
 
-Todo o ambiente de dependências (Python, Pandas, SciPy, Scikit-Learn, Statsmodels, Matplotlib, Seaborn) foi conteinerizado para garantir reprodutibilidade total sem a necessidade de instalações locais.
+O ambiente é definido em `environment.yml`, com todas as dependências, inclusive as ferramentas de qualidade, instaladas pelo conda. Não instale pacotes do mesmo ambiente com `pip`, para evitar conflitos entre os dois gerenciadores.
 
-### Pré-requisitos
+```bash
+conda env create -f environment.yml
+conda activate desafio_nps_fase_1
+```
 
-* [Docker Desktop](https://www.docker.com/products/docker-desktop/) instalado e em execução.
+Para atualizar um ambiente já existente, recrie-o:
+
+```bash
+conda deactivate
+conda env remove -n desafio_nps_fase_1
+conda env create -f environment.yml
+```
+
+Para rodar o pipeline a partir da raiz do projeto:
+
+```bash
+python src/main.py
+```
+
+Os resultados são impressos no terminal e as figuras são salvas em `reports/figures/`.
 
 ---
 
-### Opção 1: Execução Simplificada com Docker Compose
+## 🐳 Execução via Docker
 
-Esta é a opção mais prática, pois já configura automaticamente os volumes para que os gráficos gerados no contêiner sejam salvos diretamente na pasta local `reports/figures/`.
+O Docker reproduz o ambiente sem instalações locais.
+
+**Pré-requisito:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) instalado e em execução.
 
 1. **Clone o repositório:**
-```bash
-git clone [https://github.com/seu-usuario/tech-challenge-fase1-nps.git](https://github.com/seu-usuario/tech-challenge-fase1-nps.git)
-cd tech-challenge-fase1-nps
 
+```bash
+git clone https://github.com/gerferson-andre/desafio_nps_fase_1.git
+cd desafio_nps_fase_1
 ```
 
+2. **Construa a imagem:**
 
-2. **Execute a pipeline completa:**
-```bash
-docker-compose up --build
-
-```
-
-
-
----
-
-### Opção 2: Execução Direta via Docker CLI
-
-Caso prefira utilizar diretamente os comandos do Docker:
-
-1. **Construir a imagem:**
 ```bash
 docker build -t tech-challenge-nps .
-
 ```
 
+3. **Execute o pipeline e salve as figuras na pasta local `reports/`:**
 
-2. **Rodar o contêiner com mapeamento da pasta de relatórios:**
 ```bash
-docker run --rm -v $(pwd)/reports:/app/reports tech-challenge-nps
-
+docker run --rm -v "$(pwd)/reports:/app/reports" tech-challenge-nps
 ```
 
+No PowerShell do Windows, use `${PWD}` no lugar de `$(pwd)`:
 
-*(No PowerShell do Windows, substitua `$(pwd)` por `${PWD}`)*
-3. **Executar a suíte de testes dentro do contêiner:**
+```powershell
+docker run --rm -v "${PWD}/reports:/app/reports" tech-challenge-nps
+```
+
+4. **Execute a suíte de testes dentro do contêiner:**
+
 ```bash
 docker run --rm tech-challenge-nps pytest
-
 ```
 
+---
 
+## 📈 Etapas do Pipeline
+
+O arquivo `src/main.py` executa as etapas abaixo, nesta ordem.
+
+1. **Diagnóstico da base:** dimensões, tipos, valores ausentes, duplicatas e estatística descritiva.
+2. **Variável-alvo:** classificação em Detratores (nota < 7), Neutros (7 a 8,9) e Promotores (≥ 9), sem arredondamento, e cálculo do índice NPS.
+3. **Normalidade:** teste de Shapiro-Wilk e gráficos (histograma com cortes e Q-Q plot).
+4. **Associações:** coeficientes de Spearman entre cada variável e a nota, e matriz de correlação completa.
+5. **Diagnóstico operacional:** comparação de médias entre a base total, os detratores e dois grupos de não detratores (com e sem recompra em 30 dias).
+6. **Testes de grupo:**
+   - Mann-Whitney U para recompra em 30 dias, com verificação de separação entre os grupos.
+   - Kruskal-Wallis para região geográfica.
+7. **Incerteza da média:** intervalo de confiança de 95% pela distribuição t de Student e por bootstrap (2.000 reamostras) sobre a base inteira.
+8. **Modelo preditivo (OLS):** regressão linear com divisão de 80% para treino e 20% para teste, validação com métricas (MAE, RMSE e R²) e comparação com a linha de base.
 
 ---
 
-## 📈 Etapas da Pipeline Executada no Contêiner
+## 🔒 Variáveis e Cuidados com Vazamento de Dados
 
-1. **Sanitização e Diagnóstico de Dados**: leitura, checagem de tipos, detecção de nulos/duplicados e estatística descritiva completa das variáveis numéricas.
-2. **Análise Descritiva do NPS**: cálculo de centro, dispersão, assimetria/curtose e classificação oficial (Detratores, Neutros, Promotores).
-3. **Diagnóstico SLA e Segmentação**: tabela comparativa de médias operacionais entre a média geral da base, detratores e a *Coorte de Sucesso*.
-4. **Testes Formais de Normalidade**: avaliação por Shapiro-Wilk e exportação de gráficos (Histograma/KDE e Q-Q Plot).
-5. **Análise de Correlação e Heatmap**: coeficientes de correlação de Spearman para identificação de força e direção das variáveis em relação ao NPS.
-6. **Inferência Estatística e Amostragem**: construção de Intervalos de Confiança a 95% via t-Student e Bootstrap (2.000 iterações).
-7. **Testes de Hipótese Não Paramétricos**:
-* **Mann-Whitney U**: avaliação de diferenças de NPS em função da recompra em 30 dias (`repeat_purchase_30d`).
-* **Kruskal-Wallis**: avaliação de variabilidade de NPS entre regiões geográficas (`customer_region`).
-
-
-8. **Modelagem Preditiva Econométrica (OLS)**: ajuste de modelo de regressão linear para explicação e predição da nota de NPS com métricas de avaliação ($R^2$, MAE, RMSE) no conjunto de teste.
+- **Preditores do modelo:** atraso na entrega, contatos com o SAC, tempo de resolução e valor do pedido.
+- **Excluídas do modelo:** `repeat_purchase_30d` (recompra em 30 dias) e `csat_internal_score` (satisfação interna). Ambas são medidas junto ou depois da pesquisa. Elas aparecem nas análises descritivas, sinalizadas como tal.
+- **A confirmar:** o momento em que contatos com o SAC e tempo de resolução são registrados. Se forem posteriores à pesquisa, o modelo deve ser refeito sem essas variáveis.
 
 ---
 
-## 🧪 Qualidade de Código e CI/CD
+## 🧪 Qualidade de Código e CI
 
-O repositório está integrado com:
+- **Pre-commit** (`.pre-commit-config.yaml`): executa isort, black e flake8 a cada commit.
+- **Limite de linha:** 88 caracteres, definido tanto em `.flake8` quanto no hook do pre-commit.
+- **GitHub Actions** (`.github/workflows/ci.yml`): a cada push ou pull request, roda o flake8 sobre `src` e `tests` e executa a suíte com pytest.
 
-* **Testes Unitários**: executados via `pytest` validando os módulos e transformações.
-* **Hooks de Pre-commit**: garantia de formatação e padrões de código.
-* **GitHub Actions**: esteira de CI em `.github/workflows/ci.yml` que valida o build da imagem Docker e executa a suíte de testes automatizados a cada *push* ou *pull request*.
+Para rodar as verificações localmente:
+
+```bash
+flake8 src tests
+pre-commit run --all-files
+python -m pytest
+```
+
+---
+
+## ⚠️ Limitações
+
+- **Associação não é causa.** Os coeficientes e o modelo descrevem associações. Reduzir atrasos ou contatos com o SAC precisa ser testado antes de ser tratado como efeito garantido.
+- **Base de um único período.** A base não tem datas, então os resultados descrevem estes 2.500 pedidos.
+- **Separação entre recompra e nota.** Enquanto a origem dessa variável não for esclarecida, a comparação com recompra serve como diagnóstico.
+- **Faixas de ação não definidas.** O projeto não estabelece os cortes de risco que a operação usaria.
 
 ---
 
@@ -138,5 +169,3 @@ O repositório está integrado com:
 **Gerferson André Silva Costa**
 
 Pós-Graduação Tech em AI Scientist — FIAP
-
-```
