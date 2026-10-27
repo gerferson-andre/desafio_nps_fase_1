@@ -1,3 +1,11 @@
+"""Análise de NPS: Tech Challenge Fase 1.
+
+Espelha o notebook tech_challenge_andre_v4.ipynb (seções 1 a 9.2 e 10).
+Execute a partir da raiz do projeto:  python src/main.py
+
+Saídas: prints no terminal e figuras em reports/figures/.
+"""
+
 import os
 
 import matplotlib
@@ -7,320 +15,272 @@ import pandas as pd
 import seaborn as sns
 import statsmodels.api as sm
 from scipy import stats
-from scipy.stats import gaussian_kde
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 
-# Configuração não interativa do matplotlib para Docker/CI
-matplotlib.use("Agg")
+matplotlib.use("Agg")  # execução sem interface gráfica (Docker/CI)
+
+# ---------------------------------------------------------------------------
+# Configuração
+# ---------------------------------------------------------------------------
+RANDOM_STATE = 42
+DATA_PATH = os.path.join("data", "desafio_nps_fase_1.csv")
+FIG_DIR = os.path.join("reports", "figures")
+
+IDS = ["customer_id", "order_id"]
+
+# Medidas junto ou depois da pesquisa: aparecem na análise, mas não no modelo
+POS_PESQUISA = ["csat_internal_score", "repeat_purchase_30d"]
+
+FEATURES = [
+    "delivery_delay_days",
+    "customer_service_contacts",
+    "resolution_time_days",
+    "order_value",
+]
+
+INDICADORES = {
+    "delivery_delay_days": "Atraso na entrega (dias)",
+    "customer_service_contacts": "Contatos no SAC (qtd)",
+    "resolution_time_days": "Tempo de resolução (dias)",
+    "complaints_count": "Reclamações (qtd)",
+    "order_value": "Valor do pedido (R$)",
+    "freight_value": "Valor do frete (R$)",
+}
+
+ORDEM_CATEGORIAS = ["Detrator", "Neutro", "Promotor"]
+SEG_DETRATOR = "Detratores"
+SEG_RECOMPRA = "Não detratores com recompra"
+SEG_SEM_RECOMPRA = "Não detratores sem recompra"
+ORDEM_SEGMENTOS = [SEG_DETRATOR, SEG_RECOMPRA, SEG_SEM_RECOMPRA]
 
 
-def processar_analise():
-    print("--- A iniciar a leitura e processamento dos dados ---")
+# ---------------------------------------------------------------------------
+# 1 e 2. Dados e diagnóstico
+# ---------------------------------------------------------------------------
+def carregar_dados():
+    if not os.path.exists(DATA_PATH):
+        raise FileNotFoundError(f"Arquivo não encontrado: {DATA_PATH}")
+    return pd.read_csv(DATA_PATH)
 
-    # 1. Definição da base de dados (Acessando a pasta data/)
-    caminho_dados = os.path.join("data", "desafio_nps_fase_1.csv")
 
-    try:
-        df = pd.read_csv(caminho_dados)
-        print("Dados carregados com sucesso!\n")
-    except FileNotFoundError:
-        print(f"Erro: Ficheiro '{caminho_dados}' não encontrado.")
-        return
-
-    # Garantir criação do diretório de figuras
-    os.makedirs(os.path.join("reports", "figures"), exist_ok=True)
-
-    # 2. Diagnóstico de Dimensões e Tipagem
-    print("=== ETAPA: DIMENSÕES E TIPAGEM DOS DADOS ===")
+def diagnosticar_base(df):
+    print("=== 2. DIAGNÓSTICO DA BASE ===")
+    df.info()
+    print(f"\nLinhas: {df.shape[0]} | Colunas: {df.shape[1]}")
     print(
-        f"Linhas (Observações): {df.shape[0]} | "
-        f"Colunas (Atributos): {df.shape[1]}\n"
+        f"Valores ausentes: {int(df.isna().sum().sum())} | "
+        f"Linhas duplicadas: {int(df.duplicated().sum())}"
     )
-    print(df.info())
+    print(
+        f"order_id únicos: {df['order_id'].nunique()} | "
+        f"customer_id únicos: {df['customer_id'].nunique()}\n"
+    )
+    resumo = df.drop(columns=IDS).describe().T.round(2)
+    print(resumo.to_string())
 
-    # 3. Verificação de Dados Ausentes (Nulos/BRANCOS) e Duplicatas
-    print("\n=== ETAPA: SANITIZAÇÃO E QUALIDADE DOS DADOS ===")
-    nulos = df.isnull().sum()
-    msg_nulos = f"Valores Ausentes na Target (nps_score): {nulos['nps_score']}"
-    print(msg_nulos)
-    print(f"Total de Registros Duplicados: {df.duplicated().sum()}")
 
-    # 4. Sumário estatístico das variáveis (excluindo IDs)
-    print("\n=== ETAPA: SUMÁRIO ESTATÍSTICO DAS VARIÁVEIS ===")
-    colunas_ignoradas = ["customer_id", "order_id"]
-    tabela_descritiva = df.drop(columns=colunas_ignoradas).describe().T.round(2)
-    print(tabela_descritiva)
+# ---------------------------------------------------------------------------
+# 3. Variável-alvo e régua do NPS
+# ---------------------------------------------------------------------------
+def categoria_nps(nota):
+    """Classifica a nota pela régua oficial, sem arredondamento.
 
-    sns.set_theme(style="whitegrid")
+    Detrator < 7, Neutro de 7 a 8,9 e Promotor >= 9.
+    """
+    return np.select([nota < 7, nota >= 9], ["Detrator", "Promotor"], default="Neutro")
 
-    # 5. Estatística Descritiva da Target
+
+def classificar_nps(df):
+    print("\n=== 3. VARIÁVEL-ALVO E RÉGUA DO NPS ===")
     nps = df["nps_score"]
-    print("\n=== MEDIDAS DESCRITIVAS DO NPS SCORE ===")
-    print(
-        f"Média: {nps.mean():.4f} | Mediana: {nps.median():.4f} | "
-        f"Desvio Padrão: {nps.std():.4f}"
+    if nps.isna().any():
+        raise ValueError("nps_score tem valores ausentes")
+    if not nps.between(0, 10).all():
+        raise ValueError("nps_score está fora da escala de 0 a 10")
+
+    df["nps_categoria"] = pd.Categorical(
+        categoria_nps(nps), categories=ORDEM_CATEGORIAS, ordered=True
     )
-    print(
-        f"Q1 (25%): {nps.quantile(0.25):.4f} | "
-        f"Q3 (75%): {nps.quantile(0.75):.4f} | "
-        f"IQR: {nps.quantile(0.75) - nps.quantile(0.25):.4f}"
-    )
-    print(
-        f"Assimetria (Skewness): {nps.skew():.4f} | " f"Curtose: {nps.kurtosis():.4f}\n"
-    )
+    contagem = df["nps_categoria"].value_counts().reindex(ORDEM_CATEGORIAS)
+    percentual = contagem / len(df) * 100
+    print(pd.DataFrame({"n": contagem, "%": percentual}).round(2).to_string())
 
-    # 6. Categorização Oficial do NPS
-    detratores = (nps <= 6.0).sum()
-    neutros = ((nps > 6.0) & (nps <= 8.0)).sum()
-    promotores = (nps > 8.0).sum()
-    total = len(nps)
-    pct_det = (detratores / total) * 100
-    pct_neu = (neutros / total) * 100
-    pct_pro = (promotores / total) * 100
-    nps_index = pct_pro - pct_det
+    indice = percentual["Promotor"] - percentual["Detrator"]
+    print(f"\nÍndice NPS = %Promotores − %Detratores = {indice:.2f}")
+    print(f"Nota média: {nps.mean():.2f} | Mediana: {nps.median():.2f}")
 
-    print("--- CLASSIFICAÇÃO DA BASE DE CLIENTES ---")
-    print(f"Detratores (notas <= 6.0): {detratores} ({pct_det:.2f}%)")
-    print(f"Neutros (notas 7.0 - 8.0]: {neutros} ({pct_neu:.2f}%)")
-    print(f"Promotores (notas > 8.0): {promotores} ({pct_pro:.2f}%)")
-    print(f"NPS INDEX SCORE (%Promotores - %Detratores): {nps_index:.2f}\n")
 
-    # 7. Definição dos segmentos para fins descritivos
-    df["segmento_diagnostico"] = "Demais Clientes"
-    df.loc[df["nps_score"] <= 6.0, "segmento_diagnostico"] = "Detratores (NPS 0-6)"
-    df.loc[
-        (df["nps_score"] >= 9.0) & (df["repeat_purchase_30d"] == 1),
-        "segmento_diagnostico",
-    ] = "Coorte de Sucesso (NPS>=9 + Recompra)"
-
-    # 8. Seleção dos indicadores operacionais e logísticos chave
-    indicadores_operacionais = [
-        "delivery_delay_days",
-        "customer_service_contacts",
-        "resolution_time_days",
-        "complaints_count",
-        "order_value",
-        "freight_value",
-    ]
-
-    # 9. Construção da tabela comparativa de médias
-    tabela_sla = df.groupby("segmento_diagnostico")[indicadores_operacionais].mean().T
-    tabela_sla["Média Geral da Base"] = df[indicadores_operacionais].mean()
-
-    # 10. Reordenação das colunas para facilidade de leitura executiva
-    tabela_sla = tabela_sla[
-        [
-            "Média Geral da Base",
-            "Detratores (NPS 0-6)",
-            "Coorte de Sucesso (NPS>=9 + Recompra)",
-        ]
-    ]
-
-    tabela_sla.index = [
-        "Atraso na Entrega (dias)",
-        "Contatos no SAC (qtd)",
-        "Tempo de Resolução SAC (dias)",
-        "Qtd de Reclamações",
-        "Valor do Pedido (R$)",
-        "Valor do Frete (R$)",
-    ]
-
-    print("\n=== TABELA COMPARATIVA DE MÉDIAS ===")
-    print(tabela_sla.round(2))
-
-    # 11. Teste de Shapiro-Wilk
-    stat_w, p_val_w = stats.shapiro(nps)
-    print("\n=== TESTE FORMAL DE NORMALIDADE (SHAPIRO-WILK) ===")
-    print(f"Estatística W = {stat_w:.4f} | p-valor = {p_val_w:.4f}")
-    if p_val_w < 0.05:
-        print(
-            "❌ Rejeita-se H₀ (p < 0.05): "
-            "A variável 'nps_score' NÃO segue distribuição normal."
-        )
-        print("-> Direcionamento Metodológico: " "Adotar MÉTODOS NÃO PARAMÉTRICOS.")
-
-    # 12. Preparar os dados para gráficos
-    nps_clean = pd.to_numeric(df["nps_score"], errors="coerce").dropna()
-    nps_array = nps_clean.to_numpy(dtype=float)
-
-    if len(nps_array) == 0:
-        raise ValueError("A coluna nps_score não contém valores numéricos válidos.")
+# ---------------------------------------------------------------------------
+# 4. Normalidade
+# ---------------------------------------------------------------------------
+def testar_normalidade(nps):
+    print("\n=== 4. NORMALIDADE DA NOTA ===")
+    stat_w, p_w = stats.shapiro(nps)
+    print(f"Shapiro-Wilk: W = {stat_w:.4f} | p-valor = {p_w:.4g}")
+    if p_w < 0.05:
+        print("Normalidade rejeitada (p < 0,05).")
+    else:
+        print("Não há evidência contra a normalidade.")
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-
-    sns.histplot(x=nps_array, bins=11, ax=axes[0], color="teal", alpha=0.6)
-
-    if len(nps_array) > 1 and np.unique(nps_array).size > 1:
-        kde = gaussian_kde(nps_array)
-        x_grid = np.linspace(nps_array.min() - 0.5, nps_array.max() + 0.5, 300)
-        y_kde = np.asarray(kde(x_grid), dtype=float)
-        bin_width = (nps_array.max() - nps_array.min() + 1) / 11
-        y_kde = y_kde * len(nps_array) * bin_width
-
-        axes[0].plot(x_grid, y_kde, color="darkslategray", linewidth=2)
-
-    axes[0].set_title(
-        "Distribuição de Frequência do NPS Score",
-        fontsize=12,
-        fontweight="bold",
-    )
+    sns.histplot(nps, bins=np.arange(0, 10.5, 0.5), kde=True, color="teal", ax=axes[0])
+    for corte in (7, 9):
+        axes[0].axvline(corte, ls="--", color="grey")
+    axes[0].set_title("Distribuição da nota (linhas em 7 e 9)", fontweight="bold")
     axes[0].set_xlabel("Nota de NPS (0 a 10)")
-    axes[0].set_ylabel("Frequência")
-    axes[0].set_xlim(0, 10)
 
-    stats.probplot(nps_array, dist="norm", plot=axes[1])
-    axes[1].set_title(
-        "Q-Q Plot: Comparação com a Normal Teórica",
-        fontsize=12,
-        fontweight="bold",
-    )
-    axes[1].get_lines()[0].set_color("indigo")
-    axes[1].get_lines()[1].set_color("red")
+    stats.probplot(nps, dist="norm", plot=axes[1])
+    axes[1].set_title("Q-Q plot contra a normal teórica", fontweight="bold")
 
     plt.tight_layout()
-    caminho_fig1 = os.path.join("reports", "figures", "grafico_distribuicao.png")
-    plt.savefig(caminho_fig1, bbox_inches="tight")
+    plt.savefig(os.path.join(FIG_DIR, "grafico_distribuicao.png"), bbox_inches="tight")
     plt.close()
 
-    # 13. Correlação de Spearman
-    cols_num = [
-        c
-        for c in df.select_dtypes(include=[np.number]).columns
-        if c not in ["customer_id", "order_id"]
-    ]
 
-    corr_nps = (
-        df[cols_num]
-        .corr(method="spearman")["nps_score"]
-        .drop("nps_score")
-        .sort_values()
-    )
+# ---------------------------------------------------------------------------
+# 5. Associações (Spearman)
+# ---------------------------------------------------------------------------
+def cor_da_barra(variavel, rho):
+    if variavel in POS_PESQUISA:
+        return "#c9cedb"
+    return "#e74c3c" if rho < 0 else "#2ecc71"
 
-    print("\n=== RANKING DE CORRELAÇÃO DE SPEARMAN COM O NPS ===")
-    print(corr_nps.round(4))
 
-    plt.figure(figsize=(10, 7))
-    cores = ["#e74c3c" if x < 0 else "#2ecc71" for x in corr_nps]
-    sns.barplot(
-        x=corr_nps.values,
-        y=corr_nps.index,
-        hue=corr_nps.index,
-        palette=cores,
-        legend=False,
-    )
+def analisar_correlacoes(df):
+    print("\n=== 5. ASSOCIAÇÃO COM A NOTA (SPEARMAN) ===")
+    cols_num = [c for c in df.select_dtypes(include=np.number).columns if c not in IDS]
+    matriz = df[cols_num].corr(method="spearman")
 
-    plt.title(
-        "Força de Associação (Correlação de Spearman) com o NPS",
-        fontsize=13,
+    corr_nps = matriz["nps_score"].drop("nps_score").sort_values()
+    print(corr_nps.round(4).to_string())
+
+    cores = [cor_da_barra(v, r) for v, r in corr_nps.items()]
+    fig, ax = plt.subplots(figsize=(10, 7))
+    ax.barh(corr_nps.index, corr_nps.values, color=cores)
+    ax.axvline(0, color="black", lw=1, ls="--")
+    ax.set_xlim(-1, 1)
+    ax.set_xlabel("Coeficiente de Spearman (ρ) com nps_score")
+    ax.set_title(
+        "Associação de cada variável com a nota de NPS",
         fontweight="bold",
-        pad=15,
+        loc="left",
     )
-    plt.xlabel("Coeficiente de Correlação (r_s)")
-    plt.ylabel("")
-    plt.axvline(x=0, color="black", linewidth=1.2, linestyle="--")
-    plt.grid(axis="x", linestyle="--", alpha=0.5)
+    for i, v in enumerate(corr_nps.values):
+        ax.text(
+            v + (0.02 if v >= 0 else -0.02),
+            i,
+            f"{v:+.2f}",
+            va="center",
+            ha="left" if v >= 0 else "right",
+            fontsize=9,
+        )
     plt.tight_layout()
-    caminho_fig2 = os.path.join("reports", "figures", "grafico_correlacao.png")
-    plt.savefig(caminho_fig2, bbox_inches="tight")
+    plt.savefig(os.path.join(FIG_DIR, "grafico_correlacao.png"), bbox_inches="tight")
     plt.close()
 
-    # 14. Matriz de Correlação Heatmap
-    matriz_corr = df[cols_num].corr(method="spearman")
+    mascara = np.triu(np.ones_like(matriz, dtype=bool))
     plt.figure(figsize=(12, 10))
     sns.heatmap(
-        matriz_corr,
+        matriz,
+        mask=mascara,
         annot=True,
         fmt=".2f",
         cmap="coolwarm",
         vmin=-1,
         vmax=1,
         linewidths=0.5,
-        cbar_kws={"label": "Coeficiente de Spearman (r_s)"},
+        cbar_kws={"label": "ρ de Spearman"},
     )
     plt.title(
-        "Matriz de Correlação de Spearman — Variáveis Operacionais e NPS",
+        "Matriz de Spearman entre variáveis numéricas",
         fontsize=13,
         fontweight="bold",
         pad=15,
     )
     plt.tight_layout()
-    caminho_fig3 = os.path.join("reports", "figures", "matriz_correlacao.png")
-    plt.savefig(caminho_fig3, bbox_inches="tight")
+    plt.savefig(os.path.join(FIG_DIR, "matriz_correlacao.png"), bbox_inches="tight")
     plt.close()
 
-    # 15. Amostragem e Inferência Estatística
-    np.random.seed(42)
-    amostra_nps = df["nps_score"].sample(n=1000, replace=False)
-    media_amostral = amostra_nps.mean()
-    erro_padrao = stats.sem(amostra_nps)
 
-    ic_tstudent = stats.t.interval(
-        0.95, df=len(amostra_nps) - 1, loc=media_amostral, scale=erro_padrao
+# ---------------------------------------------------------------------------
+# 6. Diagnóstico operacional por segmento
+# ---------------------------------------------------------------------------
+def criar_segmentos(df):
+    segmentos = np.select(
+        [df["nps_score"] < 7, df["repeat_purchase_30d"] == 1],
+        [SEG_DETRATOR, SEG_RECOMPRA],
+        default=SEG_SEM_RECOMPRA,
+    )
+    df["segmento_diagnostico"] = pd.Categorical(
+        segmentos, categories=ORDEM_SEGMENTOS, ordered=True
     )
 
-    boot_means = [
-        np.mean(np.random.choice(amostra_nps, size=len(amostra_nps), replace=True))
-        for _ in range(2000)
+
+def tabela_segmentos(df):
+    print("\n=== 6. DIAGNÓSTICO OPERACIONAL: DETRATORES E NÃO DETRATORES ===")
+    colunas = list(INDICADORES)
+    medias = df.groupby("segmento_diagnostico", observed=True)[colunas].mean().T
+    medias.insert(0, "Base total", df[colunas].mean())
+    tabela = medias[["Base total"] + ORDEM_SEGMENTOS].rename(index=INDICADORES)
+
+    n_por_grupo = df["segmento_diagnostico"].value_counts().reindex(ORDEM_SEGMENTOS)
+    tabela.loc["n (clientes)"] = [len(df)] + n_por_grupo.tolist()
+    print(tabela.round(2).to_string())
+
+
+# ---------------------------------------------------------------------------
+# 7. Testes de grupo
+# ---------------------------------------------------------------------------
+def testar_grupos(df):
+    print("\n=== 7. TESTES DE GRUPO ===")
+
+    g_sem = df.loc[df["repeat_purchase_30d"] == 0, "nps_score"]
+    g_com = df.loc[df["repeat_purchase_30d"] == 1, "nps_score"]
+    print("-- 7.1 Recompra em 30 dias (Mann-Whitney U) --")
+    print(
+        f"Nota média sem recompra: {g_sem.mean():.2f} | "
+        f"com recompra: {g_com.mean():.2f}"
+    )
+    print(
+        f"Maior nota sem recompra: {g_sem.max():.1f} | "
+        f"menor nota com recompra: {g_com.min():.1f}"
+    )
+    print(f"Distância entre os grupos: {g_com.min() - g_sem.max():.1f} ponto(s)")
+    stat_mw, p_mw = stats.mannwhitneyu(g_sem, g_com, alternative="two-sided")
+    print(f"Mann-Whitney U = {stat_mw:.1f} | p-valor = {p_mw:.4g}")
+    print(
+        "ATENÇÃO: separação total entre os grupos; investigar a origem da variável.\n"
+    )
+
+    grupos_regiao = [
+        g["nps_score"].to_numpy() for _, g in df.groupby("customer_region")
     ]
-    ic_bootstrap = np.percentile(boot_means, [2.5, 97.5])
-
-    print("\n=== INFERÊNCIA ESTATÍSTICA E INTERVALOS DE CONFIANÇA (95%) ===")
-    print(f"Média Amostral: {media_amostral:.4f}")
-    print(f"IC t-Student (Paramétrico): {ic_tstudent}")
-    print(f"IC Bootstrap (Não Paramétrico): {ic_bootstrap}")
-
-    # 16. Testes de Hipótese
-    g_sem_recompra = df[df["repeat_purchase_30d"] == 0]["nps_score"]
-    g_com_recompra = df[df["repeat_purchase_30d"] == 1]["nps_score"]
-    stat_mw, p_val_mw = stats.mannwhitneyu(g_sem_recompra, g_com_recompra)
-
-    print("\n=== MANN-WHITNEY U (NPS vs RECOMPRA) ===")
-    print(f"Média NPS sem Recompra (0): {g_sem_recompra.mean():.2f}")
-    print(f"Média NPS com Recompra (1): {g_com_recompra.mean():.2f}")
-    print(f"Estatística U = {stat_mw:.4f} | p-valor = {p_val_mw:.4f}")
-
-    if p_val_mw < 0.05:
-        print(
-            "✅ Rejeita-se H₀: Clientes que realizam "
-            "recompra possuem NPS significativamente maior.\n"
-        )
-
-    grupos_regioes = [
-        grupo["nps_score"].values for _, grupo in df.groupby("customer_region")
-    ]
-    stat_kw, p_val_kw = stats.kruskal(*grupos_regioes)
-
-    print("=== KRUSKAL-WALLIS (NPS vs REGIÃO) ===")
-    print(f"Estatística H = {stat_kw:.4f} | p-valor = {p_val_kw:.4f}")
-
-    if p_val_kw > 0.05:
-        print(
-            "❌ Não se rejeita H₀: Não há evidência "
-            "estatística de diferença de NPS entre regiões.\n"
-        )
+    stat_kw, p_kw = stats.kruskal(*grupos_regiao)
+    print("-- 7.2 Região do cliente (Kruskal-Wallis) --")
+    print(f"Kruskal-Wallis H = {stat_kw:.4f} | p-valor = {p_kw:.4f}")
+    if p_kw > 0.05:
+        print("Não há evidência de diferença de nota entre regiões (p > 0,05).")
+    else:
+        print("Há evidência de diferença de nota entre regiões (p < 0,05).")
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-
     sns.boxplot(
         x="repeat_purchase_30d",
         y="nps_score",
         data=df,
         hue="repeat_purchase_30d",
         palette=["#e74c3c", "#2ecc71"],
+        legend=False,
         ax=axes[0],
     )
+    axes[0].set_xticks([0, 1], ["Não recomprou", "Recomprou"])
     axes[0].set_title(
-        "NPS vs. Recompra em 30 dias\n(Mann-Whitney U: p < 0.001)",
-        fontsize=11,
+        "Nota por recompra em 30 dias\n(medida após a pesquisa)",
         fontweight="bold",
     )
-    axes[0].set_xticks([0, 1])
-    axes[0].set_xticklabels(["Não recomprou", "recomprou"])
     axes[0].set_xlabel("Recompra em 30 dias")
-    axes[0].set_ylabel("NPS Score")
-    if axes[0].get_legend() is not None:
-        axes[0].get_legend().remove()
+    axes[0].set_ylabel("Nota de NPS")
 
     sns.boxplot(
         x="customer_region",
@@ -328,51 +288,103 @@ def processar_analise():
         data=df,
         hue="customer_region",
         palette="Set2",
+        legend=False,
         ax=axes[1],
     )
-    axes[1].set_title("NPS por região geográfica", fontsize=11, fontweight="bold")
+    axes[1].set_title("Nota por região", fontweight="bold")
     axes[1].set_xlabel("Região do cliente")
-    axes[1].set_ylabel("NPS Score")
+    axes[1].set_ylabel("Nota de NPS")
     axes[1].tick_params(axis="x", rotation=45)
-    if axes[1].get_legend() is not None:
-        axes[1].get_legend().remove()
 
     plt.tight_layout()
-    caminho_fig4 = os.path.join("reports", "figures", "boxplots_comparativos.png")
-    plt.savefig(caminho_fig4, bbox_inches="tight")
+    plt.savefig(os.path.join(FIG_DIR, "boxplots_comparativos.png"), bbox_inches="tight")
     plt.close()
 
-    # 17. Regressão Linear OLS
-    features = [
-        "delivery_delay_days",
-        "customer_service_contacts",
-        "resolution_time_days",
-        "order_value",
-    ]
-    X = df[features]
-    y = df["nps_score"]
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
+# ---------------------------------------------------------------------------
+# 8. Intervalo de confiança da média
+# ---------------------------------------------------------------------------
+def intervalo_confianca(df):
+    print("\n=== 8. INCERTEZA DA MÉDIA DA NOTA ===")
+    rng = np.random.default_rng(RANDOM_STATE)
+    nota = df["nps_score"].to_numpy()
+    media = nota.mean()
+
+    ic_t = stats.t.interval(0.95, df=len(nota) - 1, loc=media, scale=stats.sem(nota))
+
+    n_boot = 2000
+    reamostras = rng.choice(nota, size=(n_boot, len(nota)), replace=True)
+    ic_boot = np.percentile(reamostras.mean(axis=1), [2.5, 97.5])
+
+    print(f"Média da nota: {media:.4f}")
+    print(f"IC 95% (t de Student): ({ic_t[0]:.4f}, {ic_t[1]:.4f})")
+    print(
+        f"IC 95% (bootstrap, {n_boot} reamostras): "
+        f"({ic_boot[0]:.4f}, {ic_boot[1]:.4f})"
     )
 
-    X_train_const = sm.add_constant(X_train)
-    X_test_const = sm.add_constant(X_test)
-    modelo_ols = sm.OLS(y_train, X_train_const).fit()
 
-    print("\n=== SUMÁRIO ESTATÍSTICO DO MODELO OLS (TREINO) ===")
-    print(modelo_ols.summary())
+# ---------------------------------------------------------------------------
+# 9. Modelo preditivo (OLS)
+# ---------------------------------------------------------------------------
+def metricas(real, previsto):
+    return {
+        "MAE": mean_absolute_error(real, previsto),
+        "RMSE": np.sqrt(mean_squared_error(real, previsto)),
+        "R²": r2_score(real, previsto),
+    }
 
-    y_pred = modelo_ols.predict(X_test_const)
-    mae = mean_absolute_error(y_test, y_pred)
-    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-    r2 = r2_score(y_test, y_pred)
 
-    print("\n=== DESEMPENHO PREDITIVO NO CONJUNTO DE TESTE ===")
-    print(f"MAE (Erro Médio Absoluto): {mae:.4f}")
-    print(f"RMSE (Raiz do Erro Quadrático Médio): {rmse:.4f}")
-    print(f"R² (Coeficiente de Determinação): {r2:.4f}")
+def ajustar_modelo(df):
+    print("\n=== 9.1 AJUSTE DA REGRESSÃO LINEAR (OLS) ===")
+    X = df[FEATURES]
+    y = df["nps_score"]
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=RANDOM_STATE
+    )
+
+    modelo = sm.OLS(y_train, sm.add_constant(X_train)).fit()
+    print(modelo.summary())
+
+    print("\n=== 9.2 VALIDAÇÃO NO CONJUNTO DE TESTE ===")
+    y_pred = modelo.predict(sm.add_constant(X_test))
+    fora = ((y_pred < 0) | (y_pred > 10)).mean()
+    print(f"Previsões fora de [0, 10] antes do ajuste: {fora:.1%}")
+
+    y_pred_ajustado = y_pred.clip(0, 10)
+    promotor = (y_pred_ajustado >= 9).mean()
+    print(f"Previsões na faixa de promotor (≥ 9): {promotor:.1%}")
+
+    baseline = np.full(len(y_test), y_train.mean())
+    comparacao = pd.DataFrame(
+        {
+            "Modelo OLS": metricas(y_test, y_pred_ajustado),
+            "Linha de base (média)": metricas(y_test, baseline),
+        }
+    )
+    print(comparacao.round(4).to_string())
+
+
+# ---------------------------------------------------------------------------
+# Execução
+# ---------------------------------------------------------------------------
+def main():
+    os.makedirs(FIG_DIR, exist_ok=True)
+    sns.set_theme(style="whitegrid")
+    pd.set_option("display.float_format", "{:.2f}".format)
+
+    df = carregar_dados()
+    diagnosticar_base(df)
+    classificar_nps(df)
+    testar_normalidade(df["nps_score"])
+    analisar_correlacoes(df)
+    criar_segmentos(df)
+    tabela_segmentos(df)
+    testar_grupos(df)
+    intervalo_confianca(df)
+    ajustar_modelo(df)
+    print("\nAnálise concluída.")
 
 
 if __name__ == "__main__":
-    processar_analise()
+    main()
